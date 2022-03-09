@@ -77,8 +77,8 @@ class Snake:
         return self.tail[-1] in self.tail[:-1]
     
         
-class MQTTAdapter:
-    """ MQTT Snake network controller """
+class MQTTConnector:
+    """ MQTT Snake network connector """
     
     topic: str
     player_name : str
@@ -126,6 +126,10 @@ class MQTTAdapter:
         self.client.message_callback_add(self._fruitpos_topic(), update_fruit_callback)
         
         self.client.loop_start()
+
+    def disconnect(self):
+        self.client.loop_stop()
+        self.client.disconnect()
         
     def publish_player(self, snake):
  
@@ -160,16 +164,16 @@ class SnakeGame:
     fps: int
     save_border_width: int
     
-    mqtt_adapter: MQTTAdapter
+    mqtt_connector: MQTTConnector
     remote_snake: Snake
   
-    def __init__(self, board_width = 80, board_height = 60, pixel_width = 15, snake = None, fruit_pos= None, mqtt_adapter = None, save_border_percent = 20):
+    def __init__(self, board_width = 80, board_height = 60, pixel_width = 15, snake = None, fruit_pos= None, mqtt_connector = None, save_border_percent = 20):
         self.board_width = board_width
         self.board_height = board_height
         self.pixel_width = pixel_width
         self.snake = snake
         self.remote_snake = None
-        self.mqtt_adapter = mqtt_adapter       
+        self.mqtt_connector = mqtt_connector
         self.fruit_pos = fruit_pos
         self.screen = pygame.display.set_mode((board_width * pixel_width, board_height * pixel_width))
         self.fps = 5
@@ -211,11 +215,13 @@ class SnakeGame:
             self.snake.maxlength += 1
             self.fruit_pos = self._random_point()
             
-            if self.mqtt_adapter:
-                self.mqtt_adapter.publish_fruit(self.fruit_pos)
+            if self.mqtt_connector:
+                self.mqtt_connector.publish_fruit(self.fruit_pos)
                
     def lose_game(self):
         self.write_on_screen("Game Over")
+        if self.mqtt_connector:
+            self.mqtt_connector.disconnect()
         pygame.time.wait(3000)
 
 
@@ -260,11 +266,11 @@ class SnakeGame:
 
         fps_clock = pygame.time.Clock()
 
-        if self.mqtt_adapter:
-            self.mqtt_adapter.connect(update_snake_callback = self.update_snake_callback, update_fruit_callback = self.update_fruit_callback)
+        if self.mqtt_connector:
+            self.mqtt_connector.connect(update_snake_callback = self.update_snake_callback, update_fruit_callback = self.update_fruit_callback)
             self.remote_snake = Snake(tail=[])
-            self.mqtt_adapter.publish_fruit(self.fruit_pos)
-            self.mqtt_adapter.publish_player(self.snake)
+            self.mqtt_connector.publish_fruit(self.fruit_pos)
+            self.mqtt_connector.publish_player(self.snake)
 
             while len(self.remote_snake.tail) == 0:
                 self.write_on_screen("Waiting for other player")
@@ -285,8 +291,8 @@ class SnakeGame:
             self.snake.move()
             self.handle_fruit()
 
-            if self.mqtt_adapter:
-                self.mqtt_adapter.publish_player(self.snake)
+            if self.mqtt_connector:
+                self.mqtt_connector.publish_player(self.snake)
                 
                 if non_collision_countdown > 0:
                     non_collision_countdown -= 1
@@ -307,8 +313,8 @@ def main():
     
     snake_game = None
     if len(sys.argv) > 1:
-       mqtt_adapter = MQTTAdapter(sys.argv[1], sys.argv[2])
-       snake_game = SnakeGame(mqtt_adapter = mqtt_adapter)
+       mqtt_connector = MQTTConnector(sys.argv[1], sys.argv[2])
+       snake_game = SnakeGame(mqtt_connector = mqtt_connector)
     else:
        snake_game = SnakeGame()
     
