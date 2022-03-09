@@ -250,8 +250,8 @@ class SnakeGame:
     def update_fruit_callback(self, client, userdata, msg):
         x = json.loads(msg.payload.decode())
         self.fruit_pos = Point(x[0], x[1])
-        
-    def game_loop(self):
+
+    def run_game(self):
         if not self.snake:
             self.snake = Snake(tail=[self._random_point()])
 
@@ -265,7 +265,7 @@ class SnakeGame:
             self.remote_snake = Snake(tail=[])
             self.mqtt_adapter.publish_fruit(self.fruit_pos)
             self.mqtt_adapter.publish_player(self.snake)
-            
+
             while len(self.remote_snake.tail) == 0:
                 self.write_on_screen("Waiting for other player")
                 for event in pygame.event.get():
@@ -274,8 +274,10 @@ class SnakeGame:
 
                 fps_clock.tick(self.fps)
 
-        non_collision_countdown = len(self.snake.tail) + 1
+        self.game_loop(fps_clock)
 
+    def game_loop(self, fps_clock):
+        non_collision_countdown = len(self.snake.tail) + 1
         while True:
             if self.player_control_or_quit():
                 return
@@ -310,7 +312,7 @@ def main():
     else:
        snake_game = SnakeGame()
     
-    snake_game.game_loop()
+    snake_game.run_game()
     pygame.quit()
     
 if __name__ == "__main__":
